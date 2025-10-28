@@ -16,7 +16,9 @@ import Foundation
 public struct DotProduct: DistanceMetricProtocol {
     public init() {}
 
-    public func findNearest(for queryEmbedding: [Float], in neighborEmbeddings: [[Float]], resultsCount: Int) -> [(Float, Int)] {
+    public func findNearest(
+        for queryEmbedding: [Float], in neighborEmbeddings: [[Float]], resultsCount: Int
+    ) -> [(Float, Int)] {
         let scores = neighborEmbeddings.map { distance(between: queryEmbedding, and: $0) }
         return sortedScores(scores: scores, topK: resultsCount)
     }
@@ -31,7 +33,8 @@ public struct DotProduct: DistanceMetricProtocol {
         var dotProduct: Float = 0
 
         // Calculate dot product using Accelerate
-        vDSP_dotpr(firstEmbedding, 1, secondEmbedding, 1, &dotProduct, vDSP_Length(firstEmbedding.count))
+        vDSP_dotpr(
+            firstEmbedding, 1, secondEmbedding, 1, &dotProduct, vDSP_Length(firstEmbedding.count))
 
         return dotProduct
     }
@@ -45,7 +48,9 @@ public struct DotProduct: DistanceMetricProtocol {
 public struct CosineSimilarity: DistanceMetricProtocol {
     public init() {}
 
-    public func findNearest(for queryEmbedding: [Float], in neighborEmbeddings: [[Float]], resultsCount: Int) -> [(Float, Int)] {
+    public func findNearest(
+        for queryEmbedding: [Float], in neighborEmbeddings: [[Float]], resultsCount: Int
+    ) -> [(Float, Int)] {
         let scores = neighborEmbeddings.map { distance(between: queryEmbedding, and: $0) }
         return sortedScores(scores: scores, topK: resultsCount)
     }
@@ -62,7 +67,8 @@ public struct CosineSimilarity: DistanceMetricProtocol {
         var secondMagnitude: Float = 0
 
         // Calculate dot product and magnitudes using Accelerate
-        vDSP_dotpr(firstEmbedding, 1, secondEmbedding, 1, &dotProduct, vDSP_Length(firstEmbedding.count))
+        vDSP_dotpr(
+            firstEmbedding, 1, secondEmbedding, 1, &dotProduct, vDSP_Length(firstEmbedding.count))
         vDSP_svesq(firstEmbedding, 1, &firstMagnitude, vDSP_Length(firstEmbedding.count))
         vDSP_svesq(secondEmbedding, 1, &secondMagnitude, vDSP_Length(secondEmbedding.count))
 
@@ -83,7 +89,9 @@ public struct CosineSimilarity: DistanceMetricProtocol {
 public struct EuclideanDistance: DistanceMetricProtocol {
     public init() {}
 
-    public func findNearest(for queryEmbedding: [Float], in neighborEmbeddings: [[Float]], resultsCount: Int) -> [(Float, Int)] {
+    public func findNearest(
+        for queryEmbedding: [Float], in neighborEmbeddings: [[Float]], resultsCount: Int
+    ) -> [(Float, Int)] {
         let distances = neighborEmbeddings.map { distance(between: queryEmbedding, and: $0) }
         return sortedDistances(distances: distances, topK: resultsCount)
     }
@@ -98,7 +106,8 @@ public struct EuclideanDistance: DistanceMetricProtocol {
         var distance: Float = 0
 
         // Calculate squared differences and sum them using Accelerate
-        vDSP_distancesq(firstEmbedding, 1, secondEmbedding, 1, &distance, vDSP_Length(firstEmbedding.count))
+        vDSP_distancesq(
+            firstEmbedding, 1, secondEmbedding, 1, &distance, vDSP_Length(firstEmbedding.count))
 
         // Return the square root of the summed squared differences
         return sqrt(distance)

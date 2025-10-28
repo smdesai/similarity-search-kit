@@ -5,8 +5,8 @@
 //  Created by Zach Nagengast on 4/20/23.
 //
 
-import Foundation
 import CoreML
+import Foundation
 
 public class BertTokenizer: TokenizerProtocol {
     private let basicTokenizer = BasicTokenizer()
@@ -34,20 +34,23 @@ public class BertTokenizer: TokenizerProtocol {
     public func buildModelTokens(sentence: String) -> [Int] {
         var tokens = tokenizeToIds(text: sentence)
 
-        let clsSepTokenCount = 2 // Account for [CLS] and [SEP] tokens
+        let clsSepTokenCount = 2  // Account for [CLS] and [SEP] tokens
 
         if tokens.count + clsSepTokenCount > maxLen {
-            print("Input sentence is too long \(tokens.count + clsSepTokenCount) > \(maxLen), truncating.")
+            print(
+                "Input sentence is too long \(tokens.count + clsSepTokenCount) > \(maxLen), truncating."
+            )
             tokens = Array(tokens[..<(maxLen - clsSepTokenCount)])
         }
 
         let paddingCount = maxLen - tokens.count - clsSepTokenCount
 
-        let inputTokens: [Int] = [
-            tokenToId(token: "[CLS]"),
-        ] + tokens + [
-            tokenToId(token: "[SEP]"),
-        ] + Array(repeating: 0, count: paddingCount)
+        let inputTokens: [Int] =
+            [
+                tokenToId(token: "[CLS]")
+            ] + tokens + [
+                tokenToId(token: "[SEP]")
+            ] + Array(repeating: 0, count: paddingCount)
 
         return inputTokens
     }
@@ -70,21 +73,23 @@ public class BertTokenizer: TokenizerProtocol {
 
         return (inputIds, attentionMask)
     }
-    
+
     /**
      Builds model inputs with type IDs from the given input tokens.
-
+    
      - Parameters:
        - inputTokens: An array of integers representing input tokens.
-
+    
      - Returns: A tuple containing three `MLMultiArray` objects:
        - The first `MLMultiArray` represents input IDs.
        - The second `MLMultiArray` is the attention mask.
        - The third `MLMultiArray` contains token type IDs.
     */
-    public func buildModelInputsWithTypeIds(from inputTokens: [Int]) -> (MLMultiArray, MLMultiArray, MLMultiArray) {
+    public func buildModelInputsWithTypeIds(from inputTokens: [Int]) -> (
+        MLMultiArray, MLMultiArray, MLMultiArray
+    ) {
         let (inputIds, attentionMask) = buildModelInputs(from: inputTokens)
-        
+
         var encounteredSep = false
         let sepToken = tokenToId(token: "[SEP]")
         let tokenTypeIdValues: [Int] = inputTokens.map { token in
@@ -214,7 +219,7 @@ class WordpieceTokenizer {
             var currentSubstring: String?
 
             while start < end {
-                var substring = Utils.substr(word, start..<end)!
+                var substring = Utils.substr(word, start ..< end)!
                 if start > 0 {
                     substring = "##\(substring)"
                 }
@@ -289,7 +294,7 @@ struct Utils {
         }
         let startIndex = s.index(s.startIndex, offsetBy: r.lowerBound)
         let endIndex = s.index(s.startIndex, offsetBy: r.upperBound)
-        return String(s[startIndex..<endIndex])
+        return String(s[startIndex ..< endIndex])
     }
 
     /// Invert a (k, v) dictionary
@@ -323,7 +328,7 @@ extension MLMultiArray {
     static func toIntArray(_ o: MLMultiArray) -> [Int] {
         var arr = Array(repeating: 0, count: o.count)
         let ptr = UnsafeMutablePointer<Int32>(OpaquePointer(o.dataPointer))
-        for i in 0..<o.count {
+        for i in 0 ..< o.count {
             arr[i] = Int(ptr[i])
         }
         return arr
@@ -333,7 +338,7 @@ extension MLMultiArray {
     static func toDoubleArray(_ o: MLMultiArray) -> [Double] {
         var arr: [Double] = Array(repeating: 0, count: o.count)
         let ptr = UnsafeMutablePointer<Double>(OpaquePointer(o.dataPointer))
-        for i in 0..<o.count {
+        for i in 0 ..< o.count {
             arr[i] = Double(ptr[i])
         }
         return arr
@@ -342,7 +347,7 @@ extension MLMultiArray {
     static func toFloatArray(_ o: MLMultiArray) -> [Float] {
         var arr: [Float] = Array(repeating: 0, count: o.count)
         let ptr = UnsafeMutablePointer<Float>(OpaquePointer(o.dataPointer))
-        for i in 0..<o.count {
+        for i in 0 ..< o.count {
             arr[i] = Float(ptr[i])
         }
         return arr
@@ -362,7 +367,7 @@ extension MLMultiArray {
     static func testTensor(shape: [Int]) -> MLMultiArray {
         let arr = try! MLMultiArray(shape: shape as [NSNumber], dataType: .double)
         let ptr = UnsafeMutablePointer<Double>(OpaquePointer(arr.dataPointer))
-        for i in 0..<arr.count {
+        for i in 0 ..< arr.count {
             ptr.advanced(by: i).pointee = Double(i)
         }
         return arr

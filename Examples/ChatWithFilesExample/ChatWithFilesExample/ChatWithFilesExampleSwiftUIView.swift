@@ -5,11 +5,12 @@
 //  Created by Zach Nagengast on 4/17/23.
 //
 
-import SwiftUI
 import SimilaritySearchKit
 import SimilaritySearchKitDistilbert
+import SimilaritySearchKitMXBAI
 import SimilaritySearchKitMiniLMAll
 import SimilaritySearchKitMiniLMMultiQA
+import SwiftUI
 
 #if os(macOS)
     import AppKit
@@ -40,13 +41,17 @@ struct ChatWithFilesExampleSwiftUIView: View {
     @State private var folderCharactersCount: Int?
 
     @State private var clock = ContinuousClock()
-    @State private var folderScanTime: Duration = Duration(secondsComponent: 0, attosecondsComponent: 0)
+    @State private var folderScanTime: Duration = Duration(
+        secondsComponent: 0, attosecondsComponent: 0)
     @State private var scanProgress: Int = 0
     @State private var scanTotal: Int = 100
 
-    @State private var textSplitTime: Duration = Duration(secondsComponent: 0, attosecondsComponent: 0)
-    @State private var embeddingElapsedTime: Duration = Duration(secondsComponent: 0, attosecondsComponent: 0)
-    @State private var searchElapsedTime: Duration = Duration(secondsComponent: 0, attosecondsComponent: 0)
+    @State private var textSplitTime: Duration = Duration(
+        secondsComponent: 0, attosecondsComponent: 0)
+    @State private var embeddingElapsedTime: Duration = Duration(
+        secondsComponent: 0, attosecondsComponent: 0)
+    @State private var searchElapsedTime: Duration = Duration(
+        secondsComponent: 0, attosecondsComponent: 0)
 
     @State private var isLoading: Bool = false
     @State private var isSearching: Bool = false
@@ -57,7 +62,8 @@ struct ChatWithFilesExampleSwiftUIView: View {
     @State private var embeddingModel: any EmbeddingsProtocol = DistilbertEmbeddings()
     @State private var distanceMetric: any DistanceMetricProtocol = CosineSimilarity()
     @State private var currentTokenizer: any TokenizerProtocol = BertTokenizer()
-    @State private var currentSplitter: any TextSplitterProtocol = TokenSplitter(withTokenizer: BertTokenizer())
+    @State private var currentSplitter: any TextSplitterProtocol = TokenSplitter(
+        withTokenizer: BertTokenizer())
 
     @State private var similarityIndex: SimilarityIndex?
 
@@ -71,6 +77,7 @@ struct ChatWithFilesExampleSwiftUIView: View {
                         Text("Distilbert").tag(EmbeddingModelType.distilbert)
                         Text("MiniLM All").tag(EmbeddingModelType.minilmAll)
                         Text("MiniLM MultiQA").tag(EmbeddingModelType.minilmMultiQA)
+                        Text("MXBAI").tag(EmbeddingModelType.MXBAI)
                         Text("Apple NaturalLanguage").tag(EmbeddingModelType.native)
                     }
                     .pickerStyle(MenuPickerStyle())
@@ -182,7 +189,9 @@ struct ChatWithFilesExampleSwiftUIView: View {
                     }.disabled(folderContents == nil || folderTextChunks == nil)
                     Text("Index Count: \(similarityIndex?.indexItems.count ?? 0) vectors")
                     Text("Index Dimentions: \(similarityIndex?.dimension ?? 0)")
-                    Text("Estimated Size: \(ByteCountFormatter.string(fromByteCount: Int64(similarityIndex?.estimatedSizeInBytes() ?? 0), countStyle: .file))")
+                    Text(
+                        "Estimated Size: \(ByteCountFormatter.string(fromByteCount: Int64(similarityIndex?.estimatedSizeInBytes() ?? 0), countStyle: .file))"
+                    )
                 }
 
                 Spacer()
@@ -198,9 +207,12 @@ struct ChatWithFilesExampleSwiftUIView: View {
 
             Spacer()
             if isLoading {
-                ProgressView("\(progressStage): \(Int(progressCurrent)) of \(Int(progressTotal))", value: progressCurrent / progressTotal * progressTotal, total: progressTotal)
-                    .frame(maxWidth: 400, maxHeight: .infinity)
-                    .padding()
+                ProgressView(
+                    "\(progressStage): \(Int(progressCurrent)) of \(Int(progressTotal))",
+                    value: progressCurrent / progressTotal * progressTotal, total: progressTotal
+                )
+                .frame(maxWidth: 400, maxHeight: .infinity)
+                .padding()
             } else {
                 DiskItemTableView(folderContents: $folderContents)
             }
@@ -217,8 +229,10 @@ struct ChatWithFilesExampleSwiftUIView: View {
                     }
                     VStack {
                         Text("Top Results")
-                        TextField("Top Results", value: $searchResultsCount, formatter: NumberFormatter())
-                            .textFieldStyle(RoundedBorderTextFieldStyle())
+                        TextField(
+                            "Top Results", value: $searchResultsCount, formatter: NumberFormatter()
+                        )
+                        .textFieldStyle(RoundedBorderTextFieldStyle())
                     }
 
                     Button("Search") {
@@ -226,7 +240,9 @@ struct ChatWithFilesExampleSwiftUIView: View {
                             await searchIndexWithQuery(query: searchQuery, top: searchResultsCount)
                         }
                     }
-                    .disabled(folderContents == nil || folderTextChunks == nil || similarityIndex == nil)
+                    .disabled(
+                        folderContents == nil || folderTextChunks == nil || similarityIndex == nil
+                    )
                     .keyboardShortcut(.return)
                 }
 
@@ -270,6 +286,9 @@ struct ChatWithFilesExampleSwiftUIView: View {
             currentTokenizer = BertTokenizer()
         case .minilmMultiQA:
             embeddingModel = MultiQAMiniLMEmbeddings()
+            currentTokenizer = BertTokenizer()
+        case .MXBAI:
+            embeddingModel = MXBAIEmbeddings()
             currentTokenizer = BertTokenizer()
         case .native:
             embeddingModel = NativeContextualEmbeddings()
@@ -337,7 +356,8 @@ struct ChatWithFilesExampleSwiftUIView: View {
 
         let elapsedTime = clock.measure {
             guard let folderContents = folderContents else { return }
-            let fileInfoArray: [Files.FileTextContents] = Files.extractText(fromDiskItems: folderContents)
+            let fileInfoArray: [Files.FileTextContents] = Files.extractText(
+                fromDiskItems: folderContents)
 
             // Create an empty array to store the chunked FileTextContents objects
             var chunkedFileInfoArray: [Files.FileTextContents] = []
@@ -349,11 +369,13 @@ struct ChatWithFilesExampleSwiftUIView: View {
             progressTotal = Double(fileInfoArray.count)
             for fileInfo in fileInfoArray {
                 progressCurrent += 1
-                let (chunks, tokens) = currentSplitter.split(text: fileInfo.text, chunkSize: chunkSize, overlapSize: chunkOverlap)
+                let (chunks, tokens) = currentSplitter.split(
+                    text: fileInfo.text, chunkSize: chunkSize, overlapSize: chunkOverlap)
                 for (idx, chunk) in chunks.enumerated() {
                     // needs a fixed UUID every time
                     let uuid = UUID()
-                    let newFileInfo = Files.FileTextContents(id: uuid, text: chunk, fileUrl: fileInfo.fileUrl)
+                    let newFileInfo = Files.FileTextContents(
+                        id: uuid, text: chunk, fileUrl: fileInfo.fileUrl)
                     chunkedFileInfoArray.append(newFileInfo)
                     chunkTextArray.append(chunk)
                     chunkTokensArray.append(tokens?[idx] ?? currentTokenizer.tokenize(text: chunk))
@@ -399,7 +421,8 @@ struct ChatWithFilesExampleSwiftUIView: View {
     private func generateIndexFromChunks() async {
         guard let folderTextIds = folderTextIds,
             let folderTextChunks = folderTextChunks,
-            let folderTextMetadata = folderTextMetadata else { return }
+            let folderTextMetadata = folderTextMetadata
+        else { return }
 
         isLoading = true
         progressStage = "Vectorizing"
@@ -409,7 +432,9 @@ struct ChatWithFilesExampleSwiftUIView: View {
         let elapsedTime = await clock.measure {
             let index = await SimilarityIndex(model: embeddingModel, metric: distanceMetric)
 
-            await index.addItems(ids: folderTextIds, texts: folderTextChunks, metadata: folderTextMetadata) { _ in
+            await index.addItems(
+                ids: folderTextIds, texts: folderTextChunks, metadata: folderTextMetadata
+            ) { _ in
                 progressCurrent += 1
             }
 
@@ -469,7 +494,8 @@ struct ChatWithFilesExampleSwiftUIView: View {
         do {
             let data = try encoder.encode(pineconeExport)
             let savePanel = NSSavePanel()
-            savePanel.nameFieldStringValue = "\(index.indexName)_\(String(describing: currentModel))_\(index.dimension).json"
+            savePanel.nameFieldStringValue =
+                "\(index.indexName)_\(String(describing: currentModel))_\(index.dimension).json"
             savePanel.allowedContentTypes = [.json]
             savePanel.allowsOtherFileTypes = false
             savePanel.canCreateDirectories = true
@@ -502,7 +528,9 @@ struct DiskItemTableView: View {
         Table(folderChildren) {
             TableColumn("Name", value: \.fileUrl.lastPathComponent)
             TableColumn("Size") { diskItem in
-                Text("\(ByteCountFormatter.string(fromByteCount: diskItem.diskSize, countStyle: .file))  (\(String(format: "%.1f", (Double(diskItem.diskSize) / Double(folderContentsSize)) * 100))%)")
+                Text(
+                    "\(ByteCountFormatter.string(fromByteCount: diskItem.diskSize, countStyle: .file))  (\(String(format: "%.1f", (Double(diskItem.diskSize) / Double(folderContentsSize)) * 100))%)"
+                )
             }.width(200)
         }
     }
@@ -567,7 +595,9 @@ struct SearchResultTableView: View {
                 .disabled(searchResults == nil)
 
                 Button("Copy LLM Prompt") {
-                    let allText = searchResults?.map { "\($0.text)\nSOURCES: \($0.metadata["source"] ?? "")" }.joined(separator: "\n") ?? ""
+                    let allText =
+                        searchResults?.map { "\($0.text)\nSOURCES: \($0.metadata["source"] ?? "")" }
+                        .joined(separator: "\n") ?? ""
                     let prompt =
                         """
                         Given the following extracted parts of a long document and a question, create a final answer with references ("SOURCES").

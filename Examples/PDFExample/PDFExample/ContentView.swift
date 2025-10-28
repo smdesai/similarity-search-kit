@@ -5,13 +5,13 @@
 //  Created by Zach Nagengast on 5/2/23.
 //
 
-import SwiftUI
-import SimilaritySearchKit
-import SimilaritySearchKitDistilbert
-import UIKit
 import MobileCoreServices
 import PDFKit
 import QuickLookThumbnailing
+import SimilaritySearchKit
+import SimilaritySearchKitDistilbert
+import SwiftUI
+import UIKit
 
 struct ContentView: View {
     @State private var documentText: String = ""
@@ -130,12 +130,15 @@ struct ContentView: View {
 
     func loadIndex() {
         Task {
-            similarityIndex = await SimilarityIndex(name: "PDFIndex", model: DistilbertEmbeddings(), metric: DotProduct())
+            similarityIndex = await SimilarityIndex(
+                name: "PDFIndex", model: DistilbertEmbeddings(), metric: DotProduct())
         }
     }
 
     func selectFromFiles() {
-        let picker = DocumentPicker(document: $documentText, fileName: $fileName, fileIcon: $fileIcon, totalCharacters: $totalCharacters, totalTokens: $totalTokens)
+        let picker = DocumentPicker(
+            document: $documentText, fileName: $fileName, fileIcon: $fileIcon,
+            totalCharacters: $totalCharacters, totalTokens: $totalTokens)
         let hostingController = UIHostingController(rootView: picker)
         UIApplication.shared.connectedScenes
             .map { ($0 as? UIWindowScene)?.windows.first?.rootViewController }
@@ -162,7 +165,8 @@ struct ContentView: View {
 
             for (idx, chunk) in chunks.enumerated() {
                 let vector = embeddings[idx]
-                await index.addItem(id: "id\(idx)", text: chunk, metadata: ["source": fileName], embedding: vector)
+                await index.addItem(
+                    id: "id\(idx)", text: chunk, metadata: ["source": fileName], embedding: vector)
             }
         }
     }
@@ -222,12 +226,16 @@ struct ContentView: View {
 
         do {
             let data = try encoder.encode(pineconeExport)
-            let fileName = "\(index.indexName)_\(String(describing: index.indexModel))_\(index.dimension).json"
+            let fileName =
+                "\(index.indexName)_\(String(describing: index.indexModel))_\(index.dimension).json"
 
-            if let fileURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first?.appendingPathComponent(fileName) {
+            if let fileURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)
+                .first?.appendingPathComponent(fileName)
+            {
                 try data.write(to: fileURL)
 
-                let documentPicker = UIDocumentPickerViewController(forExporting: [fileURL], asCopy: true)
+                let documentPicker = UIDocumentPickerViewController(
+                    forExporting: [fileURL], asCopy: true)
                 documentPicker.modalPresentationStyle = .fullScreen
 
                 UIApplication.shared.connectedScenes
@@ -272,7 +280,7 @@ struct DocumentPicker: UIViewControllerRepresentable {
         }
 
         func documentPicker(_: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
-            guard let url = urls.first, let _ = PDFDocument(url: url) else { return }
+            guard let url = urls.first, PDFDocument(url: url) != nil else { return }
             let pdfText = Files.extractTextFromPDF(url: url) ?? ""
 
             parent.document = pdfText
@@ -283,7 +291,8 @@ struct DocumentPicker: UIViewControllerRepresentable {
             // Create the thumbnail
             let size: CGSize = CGSize(width: 60, height: 60)
             let scale = UIScreen.main.scale
-            let request = QLThumbnailGenerator.Request(fileAt: url, size: size, scale: scale, representationTypes: .all)
+            let request = QLThumbnailGenerator.Request(
+                fileAt: url, size: size, scale: scale, representationTypes: .all)
             let generator = QLThumbnailGenerator.shared
             generator.generateRepresentations(for: request) { thumbnail, _, error in
                 DispatchQueue.main.async {

@@ -13,7 +13,9 @@ public class RecursiveCharacterSplitter: TextSplitterProtocol {
         characterSplitter = CharacterSplitter()
     }
 
-    public func split(text: String, chunkSize: Int = 100, overlapSize: Int = 0) -> ([String], [[String]]?) {
+    public func split(text: String, chunkSize: Int = 100, overlapSize: Int = 0) -> (
+        [String], [[String]]?
+    ) {
         let separators = ["\n\n", "\n", ".", " "]
 
         for separator in separators {
@@ -38,7 +40,9 @@ public class RecursiveCharacterSplitter: TextSplitterProtocol {
 
                     } else {
                         chunks.append(currentChunkSplit.trimmingCharacters(in: .whitespaces))
-                        chunkTokens.append(characterSplitter.split(text: currentChunkSplit, chunkSize: chunkSize).0)
+                        chunkTokens.append(
+                            characterSplitter.split(text: currentChunkSplit, chunkSize: chunkSize).0
+                        )
 
                         // reset current
                         currentChunkTokens = tokens
@@ -50,7 +54,8 @@ public class RecursiveCharacterSplitter: TextSplitterProtocol {
                 // Add the last chunk if it's not empty
                 if !currentChunkSplit.isEmpty {
                     chunks.append(currentChunkSplit.trimmingCharacters(in: .whitespaces))
-                    chunkTokens.append(characterSplitter.split(text: currentChunkSplit, chunkSize: chunkSize).0)
+                    chunkTokens.append(
+                        characterSplitter.split(text: currentChunkSplit, chunkSize: chunkSize).0)
                 }
 
                 return (chunks, chunkTokens)

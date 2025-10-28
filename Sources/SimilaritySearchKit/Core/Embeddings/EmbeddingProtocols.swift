@@ -5,10 +5,10 @@
 //  Created by Zach Nagengast on 4/7/23.
 //
 
-import Foundation
-import CoreML
-import NaturalLanguage
 import Combine
+import CoreML
+import Foundation
+import NaturalLanguage
 
 /// A protocol for embedding models that can generate vector representations of text.
 /// Implement this protocol to support different models for encoding text into vectors.
@@ -31,6 +31,11 @@ public protocol EmbeddingsProtocol {
     /// - Parameter sentence: The input sentence to encode.
     /// - Returns: An optional array of `Float` values representing the encoded sentence.
     func encode(sentence: String) async -> [Float]?
+
+    func encode(sentence: [String]) async -> [[Float]]?
+
+    /// Indicates whether the embedding model provides an optimized batch implementation.
+    var supportsBatchEncoding: Bool { get }
 }
 
 /// A protocol for arbitrary methods of calculating similarities between vectors.
@@ -43,7 +48,9 @@ public protocol DistanceMetricProtocol {
     ///   - resultsCount: An Int representing the number of nearest neighbors to return.
     ///
     /// - Returns: A `[(Float, Int)]` array, where each tuple contains the similarity score and the index of the corresponding item in `neighborEmbeddings`. The array is sorted by decreasing similarity ranking.
-    func findNearest(for queryEmbedding: [Float], in neighborEmbeddings: [[Float]], resultsCount: Int) -> [(Float, Int)]
+    func findNearest(
+        for queryEmbedding: [Float], in neighborEmbeddings: [[Float]], resultsCount: Int
+    ) -> [(Float, Int)]
 
     /// Calculate the distance between two embedding vectors.
     ///
@@ -69,4 +76,21 @@ public protocol TextSplitterProtocol {
 public protocol TokenizerProtocol {
     func tokenize(text: String) -> [String]
     func detokenize(tokens: [String]) -> String
+}
+
+@available(macOS 11.0, iOS 15.0, *)
+extension EmbeddingsProtocol {
+    public var supportsBatchEncoding: Bool { false }
+
+    public func encode(sentence: [String]) async -> [[Float]]? {
+        var results: [[Float]] = []
+        results.reserveCapacity(sentence.count)
+        for text in sentence {
+            guard let vector = await encode(sentence: text) else {
+                return nil
+            }
+            results.append(vector)
+        }
+        return results
+    }
 }

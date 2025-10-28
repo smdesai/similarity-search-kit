@@ -5,9 +5,9 @@
 //  Created by Zach Nagengast on 4/25/23.
 //
 
-import SwiftUI
 import SimilaritySearchKit
 import SimilaritySearchKitMiniLMAll
+import SwiftUI
 
 struct ContentView: View {
     @State private var indexSentence1: String = "This is a test sentence"

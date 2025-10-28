@@ -15,6 +15,10 @@ let package = Package(
             targets: ["SimilaritySearchKit"]
         ),
         .library(
+            name: "SimilaritySearchKitMemoryMapped",
+            targets: ["SimilaritySearchKitMemoryMapped"]
+        ),
+        .library(
             name: "SimilaritySearchKitDistilbert",
             targets: ["SimilaritySearchKitDistilbert"]
         ),
@@ -26,6 +30,10 @@ let package = Package(
             name: "SimilaritySearchKitMiniLMMultiQA",
             targets: ["SimilaritySearchKitMiniLMMultiQA"]
         ),
+        .library(
+            name: "SimilaritySearchKitMXBAI",
+            targets: ["SimilaritySearchKitMXBAI"]
+        ),
     ],
     targets: [
         .target(
@@ -33,6 +41,11 @@ let package = Package(
             dependencies: [],
             path: "Sources/SimilaritySearchKit/Core",
             resources: [.process("Resources")]
+        ),
+        .target(
+            name: "SimilaritySearchKitMemoryMapped",
+            dependencies: ["SimilaritySearchKit"],
+            path: "Sources/SimilaritySearchKit/AddOns/Persistence/MemoryMapped"
         ),
         .target(
             name: "SimilaritySearchKitDistilbert",
@@ -49,6 +62,11 @@ let package = Package(
             dependencies: ["SimilaritySearchKit"],
             path: "Sources/SimilaritySearchKit/AddOns/Embeddings/MiniLMMultiQA"
         ),
+        .target(
+            name: "SimilaritySearchKitMXBAI",
+            dependencies: ["SimilaritySearchKit"],
+            path: "Sources/SimilaritySearchKit/AddOns/Embeddings/MXBAI"
+        ),
         .testTarget(
             name: "SimilaritySearchKitTests",
             dependencies: [
@@ -56,6 +74,7 @@ let package = Package(
                 "SimilaritySearchKitDistilbert",
                 "SimilaritySearchKitMiniLMAll",
                 "SimilaritySearchKitMiniLMMultiQA",
+                "SimilaritySearchKitMXBAI",
             ],
             path: "Tests/SimilaritySearchKitTests",
             resources: [.process("Resources")]

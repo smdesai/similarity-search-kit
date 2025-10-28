@@ -7,7 +7,7 @@
 
 import Foundation
 
-public extension Collection {
+extension Collection {
     /// Helper function to sort distances and return the top K distances with their indices.
     ///
     /// The `by` parameter accepts a function of the following form:
@@ -24,11 +24,14 @@ public extension Collection {
     /// - Returns: ordered array containing the top K distances
     ///
     /// - Note: TopK and the standard swift implementations switch elements with equal value differently
-    func topK(_ count: Int, by areInIncreasingOrder: (Element, Element) throws -> Bool) rethrows -> [Self.Element] {
-        assert(count >= 0,
-               """
-               Cannot prefix with a negative amount of elements!
-               """)
+    public func topK(_ count: Int, by areInIncreasingOrder: (Element, Element) throws -> Bool)
+        rethrows -> [Self.Element]
+    {
+        assert(
+            count >= 0,
+            """
+            Cannot prefix with a negative amount of elements!
+            """)
 
         guard count > 0 else {
             return []

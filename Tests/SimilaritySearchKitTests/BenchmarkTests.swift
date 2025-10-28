@@ -5,8 +5,9 @@
 //  Created by Zach Nagengast on 4/13/23.
 //
 
-import XCTest
 import CoreML
+import XCTest
+
 @testable import SimilaritySearchKit
 @testable import SimilaritySearchKitDistilbert
 @testable import SimilaritySearchKitMiniLMAll
@@ -19,7 +20,8 @@ class BenchmarkTests: XCTestCase {
         let tokenizer = BertTokenizer()
 
         let tokenIds = tokenizer.buildModelTokens(sentence: passageText)
-        let (inputIds, attentionMask, tokenTypeIds) = tokenizer.buildModelInputsWithTypeIds(from: tokenIds)
+        let (inputIds, attentionMask, tokenTypeIds) = tokenizer.buildModelInputsWithTypeIds(
+            from: tokenIds)
 
         XCTAssertEqual(MLMultiArray.toIntArray(inputIds), MSMarco.testPassage.tokens)
         XCTAssertEqual(MLMultiArray.toIntArray(tokenTypeIds), MSMarco.testPassage.tokenTypeIds)
@@ -61,7 +63,7 @@ class BenchmarkTests: XCTestCase {
     }
 
     func testDistilbertPerformanceTokenization() {
-        let passageTexts = MSMarco.passageTexts[0..<10]
+        let passageTexts = MSMarco.passageTexts[0 ..< 10]
         let tokenizer = BertTokenizer()
 
         print("Tokenizing \(passageTexts.count) passage texts")
@@ -73,7 +75,7 @@ class BenchmarkTests: XCTestCase {
     func testDistilbertPerformanceEmbeddingsSync() {
         let model = DistilbertEmbeddings()
         let tokenizer = model.tokenizer
-        let passageTexts = MSMarco.passageTexts[0..<10]
+        let passageTexts = MSMarco.passageTexts[0 ..< 10]
         var inputs = [(MLMultiArray, MLMultiArray)]()
 
         // Do 10 Sync
@@ -91,7 +93,7 @@ class BenchmarkTests: XCTestCase {
 
     func testDistilbertPerformanceEncodingAsync() {
         let model = DistilbertEmbeddings()
-        let passageTexts = MSMarco.passageTexts[0..<10]
+        let passageTexts = MSMarco.passageTexts[0 ..< 10]
 
         let expectation = XCTestExpectation(description: "Encoding passage texts")
 
@@ -107,7 +109,7 @@ class BenchmarkTests: XCTestCase {
             }
             let endTime = CFAbsoluteTimeGetCurrent()
             let elapsedTime = endTime - startTime
-            let timePerPassageText = elapsedTime / Double(passageTexts.count) * 1000 // Convert to milliseconds
+            let timePerPassageText = elapsedTime / Double(passageTexts.count) * 1000  // Convert to milliseconds
             print("\nTime per passage text: \(timePerPassageText) ms each, \(elapsedTime) s total")
             expectation.fulfill()
         }
@@ -117,9 +119,9 @@ class BenchmarkTests: XCTestCase {
 
     func testDistilbertPerformanceSearch() {
         let testAmount = 2
-        let passageIds = Array(0..<testAmount).map { _ in UUID().uuidString }
-        let passageTexts = Array(MSMarco.passageTexts[0..<testAmount])
-        let passageUrls = MSMarco.passageUrls[0..<testAmount].map { url in ["source": url] }
+        let passageIds = Array(0 ..< testAmount).map { _ in UUID().uuidString }
+        let passageTexts = Array(MSMarco.passageTexts[0 ..< testAmount])
+        let passageUrls = MSMarco.passageUrls[0 ..< testAmount].map { url in ["source": url] }
 
         let expectation = XCTestExpectation(description: "Searching passage texts")
 
@@ -147,7 +149,9 @@ class BenchmarkTests: XCTestCase {
             endTime = CFAbsoluteTimeGetCurrent()
             elapsedTime = endTime - startTime
             let timePerPassageText = elapsedTime / Double(testAmount)
-            print("\nSeach time per passage text: \(timePerPassageText) s each, \(elapsedTime) s total\n")
+            print(
+                "\nSeach time per passage text: \(timePerPassageText) s each, \(elapsedTime) s total\n"
+            )
 
             expectation.fulfill()
         }

@@ -5,8 +5,8 @@
 //  Created by Zach Nagengast on 4/12/23.
 //
 
-import Foundation
 import CoreML
+import Foundation
 import SimilaritySearchKit
 
 @available(macOS 13.0, iOS 16.0, *)
@@ -21,7 +21,8 @@ public class DistilbertEmbeddings: EmbeddingsProtocol {
         modelConfig.computeUnits = .all
 
         do {
-            self.model = try msmarco_distilbert_base_tas_b_512_single_quantized(configuration: modelConfig)
+            self.model = try msmarco_distilbert_base_tas_b_512_single_quantized(
+                configuration: modelConfig)
         } catch {
             fatalError("Failed to load the Core ML model. Error: \(error.localizedDescription)")
         }
@@ -37,12 +38,15 @@ public class DistilbertEmbeddings: EmbeddingsProtocol {
         let (inputIds, attentionMask) = tokenizer.buildModelInputs(from: inputTokens)
 
         // Send tokens through the MLModel
-        let embeddings = generateDistilbertEmbeddings(inputIds: inputIds, attentionMask: attentionMask)
+        let embeddings = generateDistilbertEmbeddings(
+            inputIds: inputIds, attentionMask: attentionMask)
 
         return embeddings
     }
 
-    public func generateDistilbertEmbeddings(inputIds: MLMultiArray, attentionMask: MLMultiArray) -> [Float]? {
+    public func generateDistilbertEmbeddings(inputIds: MLMultiArray, attentionMask: MLMultiArray)
+        -> [Float]?
+    {
         let inputFeatures = msmarco_distilbert_base_tas_b_512_single_quantizedInput(
             input_ids: inputIds,
             attention_mask: attentionMask
@@ -54,7 +58,9 @@ public class DistilbertEmbeddings: EmbeddingsProtocol {
             return nil
         }
 
-        let embeddingsArray: [Float] = (0..<embeddings.count).map { Float(embeddings[$0].floatValue) }
+        let embeddingsArray: [Float] = (0 ..< embeddings.count).map {
+            Float(embeddings[$0].floatValue)
+        }
 
         return embeddingsArray
     }

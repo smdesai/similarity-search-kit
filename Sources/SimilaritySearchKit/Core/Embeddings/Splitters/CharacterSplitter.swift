@@ -16,7 +16,9 @@ public class CharacterSplitter: TextSplitterProtocol {
     }
 
     // Split chunks based on seperator, append until the chunk size is reached
-    public func split(text: String, chunkSize: Int = 100, overlapSize: Int = 0) -> ([String], [[String]]?) {
+    public func split(text: String, chunkSize: Int = 100, overlapSize: Int = 0) -> (
+        [String], [[String]]?
+    ) {
         let components = text.components(separatedBy: separator)
         var chunks: [String] = []
         var currentChunk: [String] = []
@@ -27,7 +29,8 @@ public class CharacterSplitter: TextSplitterProtocol {
                 currentChunk.append(component)
                 currentCount += 1
             } else {
-                chunks.append(currentChunk.joined(separator: separator).trimmingCharacters(in: .whitespaces))
+                chunks.append(
+                    currentChunk.joined(separator: separator).trimmingCharacters(in: .whitespaces))
                 let overlapStart = max(0, currentChunk.count - overlapSize)
                 currentChunk = Array(currentChunk[overlapStart...])
                 currentCount = currentChunk.count
@@ -38,7 +41,8 @@ public class CharacterSplitter: TextSplitterProtocol {
 
         // Add the last chunk
         if !currentChunk.isEmpty {
-            chunks.append(currentChunk.joined(separator: separator).trimmingCharacters(in: .whitespaces))
+            chunks.append(
+                currentChunk.joined(separator: separator).trimmingCharacters(in: .whitespaces))
         }
 
         return (chunks, nil)

@@ -12,3 +12,7 @@ public protocol VectorStoreProtocol {
     func loadIndex(from url: URL) throws -> [IndexItem]
     func listIndexes(at url: URL) -> [URL]
 }
+
+public protocol MemoryMappedVectorStoreProtocol: VectorStoreProtocol {
+    func loadContext(from url: URL) throws -> MemoryMappedIndexContext
+}

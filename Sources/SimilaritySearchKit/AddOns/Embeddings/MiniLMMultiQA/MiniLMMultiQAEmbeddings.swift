@@ -5,8 +5,8 @@
 //  Created by Zach Nagengast on 4/24/23.
 //
 
-import Foundation
 import CoreML
+import Foundation
 import SimilaritySearchKit
 
 @available(macOS 12.0, iOS 15.0, *)
@@ -42,8 +42,10 @@ public class MultiQAMiniLMEmbeddings: EmbeddingsProtocol {
         return embeddings
     }
 
-    public func generateEmbeddings(inputIds: MLMultiArray, attentionMask: MLMultiArray) -> [Float]? {
-        let inputFeatures = multi_qa_MiniLM_L6_cos_v1Input(input_ids: inputIds, attention_mask: attentionMask)
+    public func generateEmbeddings(inputIds: MLMultiArray, attentionMask: MLMultiArray) -> [Float]?
+    {
+        let inputFeatures = multi_qa_MiniLM_L6_cos_v1Input(
+            input_ids: inputIds, attention_mask: attentionMask)
 
         let output = try? model.prediction(input: inputFeatures)
 
@@ -51,7 +53,9 @@ public class MultiQAMiniLMEmbeddings: EmbeddingsProtocol {
             return nil
         }
 
-        let embeddingsArray: [Float] = (0..<embeddings.count).map { Float(embeddings[$0].floatValue) }
+        let embeddingsArray: [Float] = (0 ..< embeddings.count).map {
+            Float(embeddings[$0].floatValue)
+        }
 
         return embeddingsArray
     }

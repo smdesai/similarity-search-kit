@@ -43,6 +43,8 @@ public class SimilarityIndex: Identifiable, Hashable {
     public let indexModel: any EmbeddingsProtocol
     public var indexMetric: any DistanceMetricProtocol
     public let vectorStore: any VectorStoreProtocol
+    private var memoryMappedContext: MemoryMappedIndexContext?
+    private var excludedMemoryMappedIDs: Set<String> = []
 
     /// An object representing an item in the index.
     public struct IndexItem: Codable {
@@ -85,6 +87,9 @@ public class SimilarityIndex: Identifiable, Hashable {
         /// Multi-QA MiniLM, a fast model fine-tuned for question-answering tasks.
         case minilmMultiQA
 
+        /// Mixedbread's model
+        case MXBAI
+
         /// A native model provided by Apple's NaturalLanguage library.
         case native
     }
@@ -103,6 +108,7 @@ public class SimilarityIndex: Identifiable, Hashable {
 
     public enum VectorStoreType {
         case json
+        case memoryMapped
         // TODO:
         // case mlmodel
         // case protobuf
@@ -111,7 +117,10 @@ public class SimilarityIndex: Identifiable, Hashable {
 
     // MARK: - Initializers
 
-    public init(name: String? = nil, model: (any EmbeddingsProtocol)? = nil, metric: (any DistanceMetricProtocol)? = nil, vectorStore: (any VectorStoreProtocol)? = nil) async {
+    public init(
+        name: String? = nil, model: (any EmbeddingsProtocol)? = nil,
+        metric: (any DistanceMetricProtocol)? = nil, vectorStore: (any VectorStoreProtocol)? = nil
+    ) async {
         // Setup index with defaults
         self.indexName = name ?? "SimilaritySearchKitIndex"
         self.indexModel = model ?? NativeEmbeddings()
@@ -148,19 +157,13 @@ public class SimilarityIndex: Identifiable, Hashable {
 
     // MARK: - Search
 
-    public func search(_ query: String, top resultCount: Int? = nil, metric: DistanceMetricProtocol? = nil) async -> [SearchResult] {
+    public func search(
+        _ query: String, top resultCount: Int? = nil, metric: DistanceMetricProtocol? = nil
+    ) async -> [SearchResult] {
         let resultCount = resultCount ?? 5
         guard let queryEmbedding = await indexModel.encode(sentence: query) else {
             print("Failed to generate query embedding for '\(query)'.")
             return []
-        }
-
-        var indexIds: [String] = []
-        var indexEmbeddings: [[Float]] = []
-
-        for item in indexItems {
-            indexIds.append(item.id)
-            indexEmbeddings.append(item.embedding)
         }
 
         // Calculate distances and find nearest neighbors
@@ -168,19 +171,53 @@ public class SimilarityIndex: Identifiable, Hashable {
             // Allow custom metrics at time of query
             indexMetric = customMetric
         }
-        let searchResults = indexMetric.findNearest(for: queryEmbedding, in: indexEmbeddings, resultsCount: resultCount)
+        let metricToUse = metric ?? indexMetric
+        let preferLowerScores = metricToUse is EuclideanDistance
 
-        // Map results to index ids
-        return searchResults.compactMap { result in
-            let (score, index) = result
-            let id = indexIds[index]
+        struct Candidate {
+            let score: Float
+            let id: String
+            let text: String
+            let metadata: [String: String]
+        }
 
-            if let item = getItem(id: id) {
-                return SearchResult(id: item.id, score: score, text: item.text, metadata: item.metadata)
-            } else {
-                print("Failed to find item with id '\(id)' in indexItems.")
-                return SearchResult(id: "000000", score: 0.0, text: "fail", metadata: [:])
+        var candidates: [Candidate] = []
+
+        if let context = memoryMappedContext {
+            context.enumerateEmbeddings(excluding: excludedMemoryMappedIDs) { entry, buffer in
+                guard buffer.count == queryEmbedding.count else { return }
+                let vector = Array(buffer)
+                let score = metricToUse.distance(between: queryEmbedding, and: vector)
+                candidates.append(
+                    Candidate(
+                        score: score, id: entry.id, text: entry.text, metadata: entry.metadata))
             }
+        }
+
+        for item in indexItems {
+            guard item.embedding.count == queryEmbedding.count else { continue }
+            let score = metricToUse.distance(between: queryEmbedding, and: item.embedding)
+            candidates.append(
+                Candidate(score: score, id: item.id, text: item.text, metadata: item.metadata))
+        }
+
+        if candidates.isEmpty {
+            return []
+        }
+
+        let sortedCandidates = candidates.sorted { first, second in
+            if preferLowerScores {
+                return first.score < second.score
+            } else {
+                return first.score > second.score
+            }
+        }
+
+        let topCandidates = sortedCandidates.prefix(resultCount)
+        return topCandidates.map { candidate in
+            SearchResult(
+                id: candidate.id, score: candidate.score, text: candidate.text,
+                metadata: candidate.metadata)
         }
     }
 
@@ -217,48 +254,70 @@ public class SimilarityIndex: Identifiable, Hashable {
 // MARK: - CRUD
 
 @available(macOS 11.0, iOS 15.0, *)
-public extension SimilarityIndex {
+extension SimilarityIndex {
     // MARK: Create
 
     /// Add an item with optional pre-computed embedding
-    func addItem(id: String, text: String, metadata: [String: String], embedding: [Float]? = nil) async {
+    public func addItem(
+        id: String, text: String, metadata: [String: String], embedding: [Float]? = nil
+    ) async {
         let embeddingResult = await getEmbedding(for: text, embedding: embedding)
+
+        if dimension == 0 {
+            dimension = embeddingResult.count
+        } else if dimension != embeddingResult.count {
+            print(
+                "Clearing existing index items due to embedding dimension change from \(dimension) to \(embeddingResult.count)"
+            )
+            removeAll()
+            dimension = embeddingResult.count
+        }
 
         let item = IndexItem(id: id, text: text, embedding: embeddingResult, metadata: metadata)
         indexItems.append(item)
+        excludedMemoryMappedIDs.insert(id)
     }
 
-    func addItems(ids: [String], texts: [String], metadata: [[String: String]], embeddings: [[Float]?]? = nil, onProgress: ((String) -> Void)? = nil) async {
+    public func addItems(
+        ids: [String], texts: [String], metadata: [[String: String]], embeddings: [[Float]?]? = nil,
+        onProgress: ((String) -> Void)? = nil
+    ) async {
         // Check if all input arrays have the same length
         guard ids.count == texts.count, texts.count == metadata.count else {
             fatalError("Input arrays must have the same length.")
         }
 
         if let embeddings = embeddings, embeddings.count != ids.count {
-            print("Embeddings array length must be the same as ids array length. \(embeddings.count) vs \(ids.count)")
+            print(
+                "Embeddings array length must be the same as ids array length. \(embeddings.count) vs \(ids.count)"
+            )
         }
 
-        await withTaskGroup(of: Void.self) { taskGroup in
-            for i in 0..<ids.count {
-                let id = ids[i]
-                let text = texts[i]
-                let embedding = embeddings?[i]
-                let meta = metadata[i]
-
-                taskGroup.addTask(priority: .userInitiated) {
-                    // Add the item using the addItem method
-                    await self.addItem(id: id, text: text, metadata: meta, embedding: embedding)
-                    onProgress?(id)
-                }
+        var candidateEmbeddings = embeddings
+        if candidateEmbeddings == nil, indexModel.supportsBatchEncoding {
+            if let batchEmbeddings = await indexModel.encode(sentence: texts),
+                batchEmbeddings.count == ids.count
+            {
+                candidateEmbeddings = batchEmbeddings.map { Optional($0) }
             }
-            await taskGroup.next()
+        }
+
+        for i in 0 ..< ids.count {
+            let id = ids[i]
+            let text = texts[i]
+            let meta = metadata[i]
+            let embedding = candidateEmbeddings.flatMap { $0.indices.contains(i) ? $0[i] : nil }
+            await addItem(id: id, text: text, metadata: meta, embedding: embedding)
+            onProgress?(id)
         }
     }
 
-    func addItems(_ items: [IndexItem], completion: (() -> Void)? = nil) {
+    public func addItems(_ items: [IndexItem], completion: (() -> Void)? = nil) {
         Task {
             for item in items {
-                await self.addItem(id: item.id, text: item.text, metadata: item.metadata, embedding: item.embedding)
+                await self.addItem(
+                    id: item.id, text: item.text, metadata: item.metadata, embedding: item.embedding
+                )
             }
             completion?()
         }
@@ -266,17 +325,40 @@ public extension SimilarityIndex {
 
     // MARK: Read
 
-    func getItem(id: String) -> IndexItem? {
+    public func getItem(id: String) -> IndexItem? {
         return indexItems.first { $0.id == id }
     }
 
-    func sample(_ count: Int) -> [IndexItem]? {
+    public func sample(_ count: Int) -> [IndexItem]? {
         return Array(indexItems.prefix(upTo: count))
+    }
+
+    public func memoryMappedItems(
+        matching predicate: ((MemoryMappedIndexContext.Entry) -> Bool)? = nil
+    ) -> [IndexItem] {
+        guard let context = memoryMappedContext else { return [] }
+        let entries: [MemoryMappedIndexContext.Entry]
+        if let predicate = predicate {
+            entries = context.entries.filter(predicate)
+        } else {
+            entries = context.entries
+        }
+
+        let filteredEntries = entries.filter { !excludedMemoryMappedIDs.contains($0.id) }
+        return context.makeIndexItems(for: filteredEntries)
+    }
+
+    public func memoryMappedEntries() -> [MemoryMappedIndexContext.Entry] {
+        guard let context = memoryMappedContext else { return [] }
+        return context.entries
     }
 
     // MARK: Update
 
-    func updateItem(id: String, text: String? = nil, embedding: [Float]? = nil, metadata: [String: String]? = nil) {
+    public func updateItem(
+        id: String, text: String? = nil, embedding: [Float]? = nil,
+        metadata: [String: String]? = nil
+    ) {
         // Check if the provided embedding has the correct dimension
         if let embedding = embedding, embedding.count != dimension {
             print("Dimension mismatch, expected \(dimension), saw \(embedding.count)")
@@ -303,20 +385,22 @@ public extension SimilarityIndex {
 
     // MARK: Delete
 
-    func removeItem(id: String) {
+    public func removeItem(id: String) {
         indexItems.removeAll { $0.id == id }
+        excludedMemoryMappedIDs.insert(id)
     }
 
-    func removeAll() {
+    public func removeAll() {
         indexItems.removeAll()
+        excludedMemoryMappedIDs = Set(memoryMappedContext?.entries.map { $0.id } ?? [])
     }
 }
 
 // MARK: - Persistence
 
 @available(macOS 13.0, iOS 16.0, *)
-public extension SimilarityIndex {
-    func saveIndex(toDirectory path: URL? = nil, name: String? = nil) throws -> URL {
+extension SimilarityIndex {
+    public func saveIndex(toDirectory path: URL? = nil, name: String? = nil) throws -> URL {
         let indexName = name ?? self.indexName
         let basePath: URL
 
@@ -327,17 +411,47 @@ public extension SimilarityIndex {
             basePath = try getDefaultStoragePath()
         }
 
-        let savedVectorStore = try vectorStore.saveIndex(items: indexItems, to: basePath, as: indexName)
+        let itemsToPersist: [IndexItem]
+        if let context = memoryMappedContext {
+            let replacedIDs = Set(indexItems.map { $0.id }).union(excludedMemoryMappedIDs)
+            let preservedItems = context.makeIndexItems(excluding: replacedIDs)
+            itemsToPersist = preservedItems + indexItems
+        } else {
+            itemsToPersist = indexItems
+        }
 
-        print("Saved \(indexItems.count) index items to \(savedVectorStore.absoluteString)")
+        let savedVectorStore = try vectorStore.saveIndex(
+            items: itemsToPersist, to: basePath, as: indexName)
+
+        if let memoryStore = vectorStore as? MemoryMappedVectorStoreProtocol {
+            memoryMappedContext = try memoryStore.loadContext(from: savedVectorStore)
+            excludedMemoryMappedIDs = []
+            dimension = memoryMappedContext?.dimension ?? dimension
+        }
+
+        print("Saved \(itemsToPersist.count) index items to \(savedVectorStore.absoluteString)")
 
         return savedVectorStore
     }
 
-    func loadIndex(fromDirectory path: URL? = nil, name: String? = nil) throws -> [IndexItem]? {
+    public func loadIndex(fromDirectory path: URL? = nil, name: String? = nil) throws
+        -> [IndexItem]?
+    {
         if let indexPath = try getIndexPath(fromDirectory: path, name: name) {
-            indexItems = try vectorStore.loadIndex(from: indexPath)
-            return indexItems
+            excludedMemoryMappedIDs = []
+            if let memoryStore = vectorStore as? MemoryMappedVectorStoreProtocol {
+                memoryMappedContext = try memoryStore.loadContext(from: indexPath)
+                dimension = memoryMappedContext?.dimension ?? dimension
+                indexItems = []
+                return []
+            } else {
+                memoryMappedContext = nil
+                indexItems = try vectorStore.loadIndex(from: indexPath)
+                if let firstVector = indexItems.first {
+                    dimension = firstVector.embedding.count
+                }
+                return indexItems
+            }
         }
 
         return nil
@@ -350,7 +464,7 @@ public extension SimilarityIndex {
     ///   - name: optional name
     ///
     /// - Returns: an optional URL
-    func getIndexPath(fromDirectory path: URL? = nil, name: String? = nil) throws -> URL? {
+    public func getIndexPath(fromDirectory path: URL? = nil, name: String? = nil) throws -> URL? {
         let indexName = name ?? self.indexName
         let basePath: URL
 
@@ -360,24 +474,29 @@ public extension SimilarityIndex {
             // Default local path
             basePath = try getDefaultStoragePath()
         }
-        return vectorStore.listIndexes(at: basePath).first(where: { $0.lastPathComponent.contains(indexName) })
+        return vectorStore.listIndexes(at: basePath).first(where: {
+            $0.lastPathComponent.contains(indexName)
+        })
     }
 
     private func getDefaultStoragePath() throws -> URL {
         let appName = Bundle.main.bundleIdentifier ?? "SimilaritySearchKit"
         let fileManager = FileManager.default
-        let appSupportDirectory = try fileManager.url(for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
+        let appSupportDirectory = try fileManager.url(
+            for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil,
+            create: true)
 
         let appSpecificDirectory = appSupportDirectory.appendingPathComponent(appName)
 
         if !fileManager.fileExists(atPath: appSpecificDirectory.path) {
-            try fileManager.createDirectory(at: appSpecificDirectory, withIntermediateDirectories: true, attributes: nil)
+            try fileManager.createDirectory(
+                at: appSpecificDirectory, withIntermediateDirectories: true, attributes: nil)
         }
 
         return appSpecificDirectory
     }
 
-    func estimatedSizeInBytes() -> Int {
+    public func estimatedSizeInBytes() -> Int {
         var totalSize = 0
 
         for item in indexItems {
